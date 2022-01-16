@@ -97,7 +97,7 @@ class MqttClient:
         Domoticz.Debug("MqttClient::close")
 
         if self._connection != None and self._connection.Connected():
-            self._connection.Send({ 'Verb' : 'DISCONNECT' })
+            #self._connection.Send({ 'Verb' : 'DISCONNECT' })
             self._connection.Disconnect()
 
         self._connection = None

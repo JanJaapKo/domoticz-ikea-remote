@@ -18,7 +18,7 @@
         <param field="Port" label="Port" width="300px" required="true" default="1883"/>
         <param field="Mode1" label="Zigbee2Mqtt Topic" width="300px" required="true" default="zigbee2mqtt"/>
         <param field="Mode2" label="Remote control device name" width="300px" required="true" default=""/>
-        <param field="Mode3" label="(group) names of zigbee devices, separate by ;" required="true"/>
+        <param field="Mode3" label="(group) names of zigbee devices, separate by ;" width="300px" required="true"/>
         <param field="Mode4" label="timeout to reset device index to all">
             <options>
                 <option label="10 sec" value="1" default="true"/>
@@ -43,6 +43,7 @@ from mqtt import MqttClient
 
 class IkeaRemotePlugin:
     mqttClient = None
+    action_list = ["on", "off", "brightness_move_up", "brightness_move_down", "brightness_stop", "arrow_left_click", "arrow_right_click", "arrow_left_hold", "arrow_right_hold", "arrow_left_release", "arrow_right_release"]
 
     def onStart(self):
         self.debugging = Parameters["Mode6"]
@@ -61,25 +62,27 @@ class IkeaRemotePlugin:
 
         self.devicelist = Parameters["Mode3"].split(";")
         self.devicelist.insert(0, "all")
-        self.device_index = 1
+        self.device_index = 0
         self.remote = Parameters["Mode2"].strip()
 
         self.resetTime = int(Parameters["Mode4"])
-
 
     def onStop(self):
         Domoticz.Debug("onStop called")
 
     def onHeartbeat(self):
-        self.mqttClient.onHeartbeat()
+        #self.mqttClient.onHeartbeat()
         self.resetTime = self.resetTime - 1
         if self.resetTime <= 0:
+            self.mqttClient.onHeartbeat()
             Domoticz.Debug("onHeartbeat called, reset selected device.")
-            self.device_index = 1
+
+            self.device_index = 0
 
             self.resetTime = int(Parameters["Mode4"])
         else:
-            Domoticz.Debug("onHeartbeat called, run again in " + str(self.resetTime) + " heartbeats.")
+            #Domoticz.Debug("onHeartbeat called, run again in " + str(self.resetTime) + " heartbeats.")
+            Domoticz.Debug("Selected device: '"+str(self.device_index)+"': '"+self.devicelist[self.device_index]+"'")
 
     def onConnect(self, Connection, Status, Description):
         Domoticz.Debug("onConnect called")
@@ -104,8 +107,31 @@ class IkeaRemotePlugin:
 
     def onMQTTPublish(self, topic, message):
         Domoticz.Debug("MQTT message received: " + topic + " " + str(message))
-        
-
+        if "action" in message:
+            action = message["action"]
+            if action not in self.action_list:
+                Domoticz.Debug("Action '" +action+"' not in action list")
+                return
+            if action == "arrow_left_click":
+                self.device_index -=1
+                if self.device_index < 0:
+                    self.device_index = len(self.devicelist) - 1
+            elif action == "arrow_right_click":
+                self.device_index +=1
+                if (len(self.devicelist) - 1) < self.device_index:
+                    self.device_index = 0
+            elif action == "on":
+                self.send_command(action, self.devicelist[self.device_index])
+            elif action == "off":
+                self.send_command(action, self.devicelist[self.device_index])
+            else:
+                Domoticz.Debug("Action '"+action+"' not implemented")
+            Domoticz.Debug("Selected device: '"+str(self.device_index)+"': '"+self.devicelist[self.device_index]+"'")
+            
+    def send_command(self, action, device):
+        if device == "all":
+            for device in self.devicelist:
+                self.mqttClient.publish(self.base_topic + '/' + str(device) + '/set', '{"state":"'+action.upper()+'"}')
 
 global _plugin
 _plugin = IkeaRemotePlugin()
