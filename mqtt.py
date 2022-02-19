@@ -10,7 +10,6 @@ import time
 import json
 import random
 
-
 class MqttClient:
     address = ""
     port = ""
@@ -53,7 +52,7 @@ class MqttClient:
         self.isConnected = False
 
         self._connection = Domoticz.Connection(
-            Name=self.address,
+            Name=self.client_id,
             Transport="TCP/IP",
             Protocol="MQTTS" if self.port == "8883" else "MQTT",
             Address=self.address,
@@ -83,7 +82,7 @@ class MqttClient:
             })
 
     def subscribe(self, topics):
-        Domoticz.Debug("MqttClient::subscribe")
+        Domoticz.Debug("MqttClient::subscribe to: "+str(topics))
         subscriptionlist = []
         for topic in topics:
             subscriptionlist.append({'Topic': topic, 'QoS': 0})
@@ -97,7 +96,7 @@ class MqttClient:
         Domoticz.Debug("MqttClient::close")
 
         if self._connection != None and self._connection.Connected():
-            #self._connection.Send({ 'Verb' : 'DISCONNECT' })
+            self._connection.Send({ 'Verb' : 'DISCONNECT' })
             self._connection.Disconnect()
 
         self._connection = None
@@ -140,6 +139,7 @@ class MqttClient:
             self.ping()
 
     def onMessage(self, Connection, Data):
+        Domoticz.Debug("MqttClient::onMessage: connection: "+str(Connection)+", data: "+str(Data))
         if (self._connection != Connection):
             return
 
